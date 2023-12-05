@@ -5,6 +5,7 @@
  * found in the LICENSE file in the root directory of this source tree.
  */
 
-export { fromVC, toVc } from './vcInterop.js'
+export { Attestation } from '@kiltprotocol/core'
 export * as Claim from './Claim.js'
 export * as Credential from './Credential.js'
+export { fromVC, toVc } from './vcInterop.js'

@@ -9,10 +9,19 @@
  * @module @kiltprotocol/sdk-js
  */
 
-export * from '@kiltprotocol/core'
-export { ConfigService } from '@kiltprotocol/config'
 export { Blockchain } from '@kiltprotocol/chain-helpers'
-export * as ChainHelpers from '@kiltprotocol/chain-helpers'
+export { ConfigService } from '@kiltprotocol/config'
+export {
+  BalanceUtils,
+  CType,
+  SDKErrors,
+  connect,
+  disconnect,
+  holder,
+  init,
+  issuer,
+  verifier,
+} from '@kiltprotocol/core'
 export * as Did from '@kiltprotocol/did'
-export * as Utils from '@kiltprotocol/utils'
 export * from '@kiltprotocol/types'
+export * as Utils from '@kiltprotocol/utils'

@@ -14,9 +14,14 @@ import { randomAsU8a, encodeAddress } from '@polkadot/util-crypto'
 
 import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers'
 
-import { Blockchain } from '@kiltprotocol/chain-helpers'
-import { ConfigService } from '@kiltprotocol/config'
-import { CType, connect, init } from '@kiltprotocol/core'
+import {
+  Blockchain,
+  ConfigService,
+  CType,
+  connect,
+  init,
+  Utils,
+} from '@kiltprotocol/sdk-js'
 import type {
   ICType,
   KeyringPair,
@@ -25,9 +30,10 @@ import type {
   SubmittableExtrinsic,
   SubscriptionPromise,
 } from '@kiltprotocol/types'
-import { Crypto } from '@kiltprotocol/utils'
 
 import { makeSigningKeyTool } from '../testUtils/TestUtils.js'
+
+const { Crypto } = Utils
 
 export const EXISTENTIAL_DEPOSIT = new BN(10 ** 13)
 const ENDOWMENT = EXISTENTIAL_DEPOSIT.muln(10000)
