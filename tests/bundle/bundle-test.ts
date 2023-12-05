@@ -8,13 +8,10 @@
 /// <reference lib="dom" />
 
 import type { KiltCredentialV1 as KiltCredential } from '@kiltprotocol/core'
-import type { NewDidEncryptionKey } from '@kiltprotocol/did'
+import type { Identity } from '@kiltprotocol/sdk-js'
 import type {
-  DidDocument,
-  DidUrl,
   KiltEncryptionKeypair,
   KiltKeyringPair,
-  SignerInterface,
 } from '@kiltprotocol/types'
 
 const { kilt } = window
@@ -25,55 +22,15 @@ const {
   Did,
   Blockchain,
   Utils: { Crypto, ss58Format, Signers },
-  BalanceUtils,
   KiltCredentialV1,
   Presentation,
   issuer,
   verifier,
   holder,
+  makeIdentity,
 } = kilt
 
 ConfigService.set({ submitTxResolveOn: Blockchain.IS_IN_BLOCK })
-
-async function makeSigningKeypair(
-  seed: string,
-  type: KiltKeyringPair['type'] = 'sr25519'
-): Promise<{
-  keypair: KiltKeyringPair
-  getSigners: (
-    didDocument: DidDocument
-  ) => Promise<Array<SignerInterface<string, DidUrl>>>
-  storeDidSigners: SignerInterface[]
-}> {
-  const keypair = Crypto.makeKeypairFromUri(seed, type)
-
-  const getSigners: (
-    didDocument: DidDocument
-  ) => Promise<Array<SignerInterface<string, DidUrl>>> = async (
-    didDocument
-  ) => {
-    return (
-      await Promise.all(
-        didDocument.verificationMethod?.map(({ id }) =>
-          kilt.Utils.Signers.getSignersForKeypair({
-            keypair,
-            id: `${didDocument.id}${id}`,
-          })
-        ) ?? []
-      )
-    ).flat()
-  }
-  const storeDidSigners = await kilt.Utils.Signers.getSignersForKeypair({
-    keypair,
-    id: keypair.address,
-  })
-
-  return {
-    keypair,
-    getSigners,
-    storeDidSigners,
-  }
-}
 
 function makeEncryptionKeypair(seed: string): KiltEncryptionKeypair {
   const { secretKey, publicKey } = Crypto.naclBoxPairFromSecret(
@@ -86,12 +43,15 @@ function makeEncryptionKeypair(seed: string): KiltEncryptionKeypair {
   }
 }
 
-async function createFullDidFromKeypair(
+async function createFullDidIdentity(
   payer: KiltKeyringPair,
-  keypair: KiltKeyringPair,
-  encryptionKey: NewDidEncryptionKey
-) {
-  const api = ConfigService.get('api')
+  seed: string,
+  keyType: KiltKeyringPair['type'] = 'sr25519'
+): Promise<Identity> {
+  const keypair = Crypto.makeKeypairFromUri(seed, keyType)
+
+  const encryptionKey = makeEncryptionKeypair(seed)
+
   const signers = await kilt.Utils.Signers.getSignersForKeypair({
     keypair,
     id: keypair.address,
@@ -109,15 +69,11 @@ async function createFullDidFromKeypair(
   )
   await Blockchain.signAndSubmitTx(storeTx, payer)
 
-  const queryFunction = api.call.did?.query ?? api.call.didApi.queryDid
-  const encodedDidDetails = await queryFunction(
-    Did.toChain(
-      Did.getFullDidFromVerificationMethod({
-        publicKeyMultibase: Did.keypairToMultibaseKey(keypair),
-      })
-    )
-  )
-  return Did.linkedInfoFromChain(encodedDidDetails).document
+  const identity = await makeIdentity({
+    did: `did:kilt:${keypair.address}`,
+    keypairs: [keypair],
+  })
+  return identity
 }
 
 async function runAll() {
@@ -133,29 +89,11 @@ async function runAll() {
     keypair: payer,
   })
 
-  const { keypair: aliceKeypair, getSigners: aliceSign } =
-    await makeSigningKeypair('//Alice')
-  const aliceEncryptionKey = makeEncryptionKeypair('//Alice//enc')
-  const alice = await createFullDidFromKeypair(
-    payer,
-    aliceKeypair,
-    aliceEncryptionKey
-  )
-  if (!alice.keyAgreement?.[0])
-    throw new Error('Impossible: alice has no encryptionKey')
+  const alice = await createFullDidIdentity(payer, '//Alice')
+
   console.log('alice setup done')
 
-  const { keypair: bobKeypair, getSigners: bobSign } = await makeSigningKeypair(
-    '//Bob'
-  )
-  const bobEncryptionKey = makeEncryptionKeypair('//Bob//enc')
-  const bob = await createFullDidFromKeypair(
-    payer,
-    bobKeypair,
-    bobEncryptionKey
-  )
-  if (!bob.keyAgreement?.[0])
-    throw new Error('Impossible: bob has no encryptionKey')
+  const bob = await createFullDidIdentity(payer, '//Bob')
   console.log('bob setup done')
 
   // Light DID Account creation workflow
@@ -179,47 +117,34 @@ async function runAll() {
 
   // Chain DID workflow -> creation & deletion
   console.log('DID workflow started')
-  const { keypair, getSigners, storeDidSigners } = await makeSigningKeypair(
-    '//Foo',
-    'ed25519'
-  )
+  const keypair = Crypto.makeKeypairFromUri('//Foo', 'ed25519')
+
+  const accountSigners = await kilt.Utils.Signers.getSignersForKeypair({
+    keypair,
+    id: keypair.address,
+  })
 
   const didStoreTx = await Did.getStoreTx(
     { authentication: [keypair] },
     payer.address,
-    storeDidSigners
+    accountSigners
   )
   await Blockchain.signAndSubmitTx(didStoreTx, payer)
 
-  const queryFunction = api.call.did?.query ?? api.call.didApi.queryDid
-  const encodedDidDetails = await queryFunction(
-    Did.toChain(
-      Did.getFullDidFromVerificationMethod({
-        publicKeyMultibase: Did.keypairToMultibaseKey(keypair),
-      })
-    )
-  )
-  const fullDid = Did.linkedInfoFromChain(encodedDidDetails).document
-  const resolved = await Did.resolve(fullDid.id)
-
-  if (
-    !resolved.didDocumentMetadata.deactivated &&
-    resolved.didDocument?.id === fullDid.id
-  ) {
-    console.info('DID matches')
-  } else {
-    throw new Error('DIDs do not match')
-  }
+  const identity = await makeIdentity({
+    did: `did:kilt:${keypair.address}`,
+    keypairs: [keypair],
+  })
 
   const deleteTx = await Did.authorizeTx(
-    fullDid.id,
-    api.tx.did.delete(BalanceUtils.toFemtoKilt(0)),
-    await getSigners(fullDid),
+    identity.did,
+    api.tx.did.delete(0n),
+    identity.signers,
     payer.address
   )
   await Blockchain.signAndSubmitTx(deleteTx, payer)
 
-  const resolvedAgain = await Did.resolve(fullDid.id)
+  const resolvedAgain = await Did.resolve(identity.did)
   if (resolvedAgain.didDocumentMetadata.deactivated) {
     console.info('DID successfully deleted')
   } else {
@@ -238,9 +163,9 @@ async function runAll() {
   })
 
   const cTypeStoreTx = await Did.authorizeTx(
-    alice.id,
+    alice.did,
     api.tx.ctype.add(CType.toChain(DriversLicense)),
-    await aliceSign(alice),
+    alice.signers,
     payer.address
   )
   await Blockchain.signAndSubmitTx(cTypeStoreTx, payer)
@@ -255,8 +180,8 @@ async function runAll() {
   const credential = await issuer.createCredential({
     cType: DriversLicense,
     claims: content,
-    subject: bob.id,
-    issuer: alice.id,
+    subject: bob.did,
+    issuer: alice.did,
   })
 
   console.info('Credential subject conforms to CType')
@@ -264,16 +189,16 @@ async function runAll() {
   if (
     credential.credentialSubject.name !== content.name ||
     credential.credentialSubject.age !== content.age ||
-    credential.credentialSubject.id !== bob.id
+    credential.credentialSubject.id !== bob.did
   ) {
     throw new Error('Claim content inside Credential mismatching')
   }
 
-  const issued = await issuer.issue(credential, {
-    did: alice.id,
-    signers: [...(await aliceSign(alice)), ...payerSigners],
-    submitterAccount: payer.address,
-  })
+  // turn alice into a transaction submission enabled identity
+  alice.submitterAccount = payer.address
+  await alice.addSigner(...payerSigners)
+
+  const issued = await issuer.issue(credential, alice as any)
   console.info('Credential issued')
 
   KiltCredentialV1.validateStructure(issued as KiltCredential.Interface)
@@ -305,10 +230,7 @@ async function runAll() {
 
   const presentation = await holder.createPresentation(
     [derived],
-    {
-      did: bob.id,
-      signers: await bobSign(bob),
-    },
+    bob,
     {},
     {
       challenge,
