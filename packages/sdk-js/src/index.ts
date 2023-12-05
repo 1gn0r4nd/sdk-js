@@ -16,3 +16,5 @@ export * as ChainHelpers from '@kiltprotocol/chain-helpers'
 export * as Did from '@kiltprotocol/did'
 export * as Utils from '@kiltprotocol/utils'
 export * from '@kiltprotocol/types'
+
+export * from './Identity.js'
