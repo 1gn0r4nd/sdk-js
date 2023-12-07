@@ -17,10 +17,10 @@ export {
   SDKErrors,
   connect,
   disconnect,
-  holder,
   init,
-  issuer,
-  verifier,
+  Holder,
+  Issuer,
+  Verifier,
 } from '@kiltprotocol/core'
 export * as Did from '@kiltprotocol/did'
 export * from '@kiltprotocol/types'
