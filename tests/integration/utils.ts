@@ -20,7 +20,7 @@ import {
   CType,
   connect,
   init,
-  Utils,
+  Crypto,
 } from '@kiltprotocol/sdk-js'
 import type {
   ICType,
@@ -32,8 +32,6 @@ import type {
 } from '@kiltprotocol/types'
 
 import { makeSigningKeyTool } from '../testUtils/TestUtils.js'
-
-const { Crypto } = Utils
 
 export const EXISTENTIAL_DEPOSIT = new BN(10 ** 13)
 const ENDOWMENT = EXISTENTIAL_DEPOSIT.muln(10000)
