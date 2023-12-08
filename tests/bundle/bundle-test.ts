@@ -21,13 +21,14 @@ const {
   CType,
   Did,
   Blockchain,
-  Utils: { Crypto, ss58Format, Signers },
+  Utils: { Crypto, ss58Format },
   KiltCredentialV1,
   Presentation,
   issuer,
   verifier,
   holder,
   makeIdentity,
+  withSubmitterAccount,
 } = kilt
 
 ConfigService.set({ submitTxResolveOn: Blockchain.IS_IN_BLOCK })
@@ -72,6 +73,7 @@ async function createFullDidIdentity(
   const identity = await makeIdentity({
     did: `did:kilt:${keypair.address}`,
     keypairs: [keypair],
+    transactionStrategy: withSubmitterAccount({ signer: payer }),
   })
   return identity
 }
@@ -85,9 +87,6 @@ async function runAll() {
   const FaucetSeed =
     'receive clutch item involve chaos clutch furnace arrest claw isolate okay together'
   const payer = Crypto.makeKeypairFromUri(FaucetSeed)
-  const payerSigners = await Signers.getSignersForKeypair({
-    keypair: payer,
-  })
 
   const alice = await createFullDidIdentity(payer, '//Alice')
 
@@ -193,10 +192,6 @@ async function runAll() {
   ) {
     throw new Error('Claim content inside Credential mismatching')
   }
-
-  // turn alice into a transaction submission enabled identity
-  alice.submitterAccount = payer.address
-  await alice.addSigner(...payerSigners)
 
   const issued = await issuer.issue(credential, alice as any)
   console.info('Credential issued')
