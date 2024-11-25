@@ -56,7 +56,7 @@ export async function connect(
     ...apiOpts,
   })
   await init({ api })
-  return api.isReadyOrError
+  return await api.isReadyOrError
 }
 
 /**
